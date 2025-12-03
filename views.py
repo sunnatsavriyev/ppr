@@ -64,9 +64,9 @@ class ArizaYuborishViewSet(viewsets.ModelViewSet):
     serializer_class = ArizaYuborishSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
-    search_fields = ['status', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi', 'created_by__username']
+    search_fields = ['status', 'tuzilma__tuzilma_nomi' ,'created_by__username']
     ordering_fields = ['id', 'sana', 'status']
-    filterset_fields = ['status', 'is_approved', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi']
+    filterset_fields = ['status', 'is_approved', 'tuzilma__tuzilma_nomi']
     pagination_class = CustomPagination
 
     def get_queryset(self):
@@ -91,9 +91,9 @@ class ArizaYuborishViewSet(viewsets.ModelViewSet):
 class KelganArizalarViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ArizaYuborishWithKelganSerializer
     permission_classes = [permissions.IsAuthenticated]
-    search_fields = ['status', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi', 'created_by__username']
+    search_fields = ['status', 'tuzilma__tuzilma_nomi', 'created_by__username']
     ordering_fields = ['id', 'sana', 'status']
-    filterset_fields = ['status', 'is_approved', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi']
+    filterset_fields = ['status', 'is_approved', 'tuzilma__tuzilma_nomi']
     pagination_class = CustomPagination
 
     def get_queryset(self):
@@ -128,9 +128,9 @@ class KelganArizalarViewSet(viewsets.ReadOnlyModelViewSet):
 class KelganArizalarCreateViewSet(viewsets.ModelViewSet):
     serializer_class = KelganArizalarSerializer
     permission_classes = [permissions.IsAuthenticated]
-    search_fields = ['status', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi', 'created_by__username']
+    search_fields = ['status', 'ariza__tuzilma__tuzilma_nomi', 'created_by__username']
     ordering_fields = ['id', 'sana', 'status']
-    filterset_fields = ['status', 'is_approved', 'tuzilma__tuzilma_nomi', 'kim_tomonidan__tuzilma_nomi']
+    filterset_fields = ['status', 'is_approved', 'ariza__tuzilma__tuzilma_nomi' ]
     pagination_class = CustomPagination
 
     def get_queryset(self):

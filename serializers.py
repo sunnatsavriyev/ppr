@@ -285,34 +285,34 @@ class TuzilmaSerializers(serializers.ModelSerializer):
 
 
 
+
 class ArizaYuborishSerializer(serializers.ModelSerializer):
     parol = serializers.CharField(write_only=True)
-
-    # Tuzilma dropdown
-    tuzilma = serializers.PrimaryKeyRelatedField(
-        queryset=TarkibiyTuzilma.objects.all(),
-        # slug_field='tuzilma_nomi'
-    )
     photos = serializers.ListField(
         child=serializers.ImageField(),
         write_only=True,
         required=False
     )
-    # Read-only
+    tuzilma = serializers.CharField(source="tuzilma.tuzilma_nomi", read_only=True)
+    # Read-only fields
     kim_tomonidan = serializers.SerializerMethodField()
     created_by = serializers.CharField(source="created_by.username", read_only=True)
 
     class Meta:
         model = ArizaYuborish
         fields = "__all__"
-        read_only_fields = ["kim_tomonidan", "created_by", "status", "is_approved"]
+        read_only_fields = ["kim_tomonidan", "created_by", "status", "is_approved", 'tuzilma']
 
-    
-    
     def get_kim_tomonidan(self, obj):
-        if obj.kim_tomonidan:
-            return obj.kim_tomonidan.tuzilma_nomi
-        return None
+        user = obj.kim_tomonidan
+        if not user:
+            return None
+        # Tarkibiy tuzilma yoki bekat nomini tekshirish
+        if user.tarkibiy_tuzilma:
+            return user.tarkibiy_tuzilma.tuzilma_nomi
+        elif user.bekat_nomi:
+            return user.bekat_nomi.bekat_nomi
+        return user.username
 
     def validate_parol(self, value):
         user = self.context['request'].user
@@ -323,42 +323,23 @@ class ArizaYuborishSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context['request'].user
         photos = validated_data.pop("photos", [])
-        # Ariza yaratiladi
-        ariza = ArizaYuborish(
-            tuzilma=validated_data["tuzilma"],  # bu dropdowndan tanlangan tuzilma
+
+        ariza = ArizaYuborish.objects.create(
+            tuzilma=validated_data["tuzilma"],
             comment=validated_data["comment"],
             parol=validated_data["parol"],
             created_by=user,
-            status="jarayonda"
+            status="jarayonda",
+            kim_tomonidan=user,  # user ni qo'yamiz, get_kim_tomonidan orqali tuzilma/bekat chiqariladi
+            is_approved=user.is_superuser
         )
 
+        # Rasm fayllari saqlash
         for img in photos:
             ArizaYuborishImage.objects.create(ariza=ariza, rasm=img)
-            
-        # Ariza yuborishda bekat boshlig'i uchun kim_tomonidan tayinlash
-        if user.tarkibiy_tuzilma:
-            ariza.kim_tomonidan = user.tarkibiy_tuzilma
-        elif user.bekat_nomi:
-            # Bekat nomi bilan TarkibiyTuzilma topish yoki yaratish
-            tuzilma = TarkibiyTuzilma.objects.filter(tuzilma_nomi=user.bekat_nomi.bekat_nomi).first()
-            if not tuzilma:
-                tuzilma = TarkibiyTuzilma.objects.create(
-                    tuzilma_nomi=user.bekat_nomi.bekat_nomi,
-                    faoliyati="Bekat",
-                    rahbari=user.username
-                )
-            ariza.kim_tomonidan = tuzilma
-        else:
-            raise serializers.ValidationError(
-                "Foydalanuvchiga tuzilma yoki bekat biriktirilmagan."
-            )
 
-
-        if user.is_superuser:
-            ariza.is_approved = True
-
-        ariza.save()
         return ariza
+
 
 
 
@@ -367,10 +348,13 @@ class KelganArizalarSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(source="created_by.username", read_only=True)
     ariza_comment = serializers.CharField(source="ariza.comment", read_only=True)
     ariza_tuzilma = serializers.CharField(source="ariza.tuzilma.tuzilma_nomi", read_only=True)
-    ariza_kim_tomonidan = serializers.CharField(source="ariza.kim_tomonidan.tuzilma_nomi", read_only=True)
+    
+    # bu yerda SerializerMethodField ishlatiladi
+    ariza_kim_tomonidan = serializers.SerializerMethodField()
+    
     sana = serializers.DateTimeField(format="%Y-%m-%d %H:%M", read_only=True)
     ariza = serializers.PrimaryKeyRelatedField(
-        queryset=ArizaYuborish.objects.none(),  
+        queryset=ArizaYuborish.objects.all(),  
         write_only=True
     )
     parol = serializers.CharField(write_only=True)
@@ -382,11 +366,25 @@ class KelganArizalarSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = KelganArizalar
-        fields = ["id", "rasmlar",'rasm', "akt_file", "comment", "created_by", 
-                  "is_approved", "sana", "ariza_comment", "ariza_tuzilma", "ariza_kim_tomonidan", "ariza", "parol" ]
-        read_only_fields = ["created_by", "is_approved", "sana",
-                            "ariza_comment", "ariza_tuzilma", "ariza_kim_tomonidan"]
+        fields = [
+            "id", "rasmlar", "rasm", "akt_file", "comment", "created_by", 
+            "is_approved", "sana", "ariza_comment", "ariza_tuzilma", 
+            "ariza_kim_tomonidan", "ariza", "parol"
+        ]
+        read_only_fields = [
+            "created_by", "is_approved", "sana",
+            "ariza_comment", "ariza_tuzilma", "ariza_kim_tomonidan"
+        ]
 
+    def get_ariza_kim_tomonidan(self, obj):
+        user = obj.ariza.kim_tomonidan
+        if not user:
+            return None
+        if user.tarkibiy_tuzilma:
+            return user.tarkibiy_tuzilma.tuzilma_nomi
+        elif user.bekat_nomi:
+            return user.bekat_nomi.bekat_nomi
+        return user.username
 
     def validate_parol(self, value):
         user = self.context['request'].user
@@ -417,7 +415,6 @@ class KelganArizalarSerializer(serializers.ModelSerializer):
 
 
 
-
 class KelganArizaImagesSerializer(serializers.ModelSerializer):
     class Meta:
         model = KelganArizalarImage
@@ -430,6 +427,11 @@ class ArizaImagesSerializer(serializers.ModelSerializer):
         fields = ["rasm"]
 
 
+
+
+
+
+
 # serializers.py
 class KelganArizaSerializer(serializers.ModelSerializer):
     
@@ -437,19 +439,33 @@ class KelganArizaSerializer(serializers.ModelSerializer):
         model = KelganArizalar
         fields = ["id", "rasm", "akt_file", "comment", "status", "created_by", "is_approved", "sana"]
 
+
+
+
 class ArizaYuborishWithKelganSerializer(serializers.ModelSerializer):
     kelganlar = KelganArizaSerializer(many=True, read_only=True)
     parol = serializers.CharField(write_only=True)
     rasmlar = ArizaImagesSerializer(many=True, read_only=True)
     tuzilma = serializers.CharField(source="tuzilma.tuzilma_nomi", read_only=True)
-    kim_tomonidan = serializers.CharField(source="kim_tomonidan.tuzilma_nomi", read_only=True)
+    kim_tomonidan = serializers.SerializerMethodField()
     created_by = serializers.CharField(source="created_by.username", read_only=True)
 
     class Meta:
         model = ArizaYuborish
-        fields = ["id", "comment", "sana", "photo", "parol", "status", "is_approved", 
-                  "tuzilma", "kim_tomonidan", "created_by", "kelganlar", "rasmlar"]
+        fields = [
+            "id", "comment", "sana", "photo", "parol", "status", "is_approved",
+            "tuzilma", "kim_tomonidan", "created_by", "kelganlar", "rasmlar"
+        ]
 
+    def get_kim_tomonidan(self, obj):
+        user = obj.kim_tomonidan
+        if not user:
+            return None
+        if user.tarkibiy_tuzilma:
+            return user.tarkibiy_tuzilma.tuzilma_nomi
+        elif user.bekat_nomi:
+            return user.bekat_nomi.bekat_nomi
+        return user.username
 
 
 

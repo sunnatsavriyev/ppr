@@ -193,10 +193,11 @@ class ArizaYuborish(models.Model):
     sana = models.DateTimeField(auto_now_add=True)
     photo = models.ImageField(upload_to='ariza_rasmlari/', blank=True, null=True)
     kim_tomonidan = models.ForeignKey(
-        TarkibiyTuzilma,
+        CustomUser,
         on_delete=models.CASCADE,
         related_name="ariza_kim",
-        verbose_name="Kim tomonidan"
+        verbose_name="Kim tomonidan",
+        null=True, blank=True
     )
     parol = models.CharField(max_length=100)
     status = models.CharField(max_length=20, choices=STATUS, default="jarayonda")
